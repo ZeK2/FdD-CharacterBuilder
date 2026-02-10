@@ -6,8 +6,9 @@ import os
 from neo4j import GraphDatabase
 
 RESSOURCES_FOLDER = "ressources/"
-CLASS_TREE_PDF = "FdD_ACC_*.pdf"
 
+CLASS_TREE_PDF = "FdD_ACC_*.pdf"
+ORDINARY_TECHNIQUES_PDF = "FdD_GTO_*.pdf"
 
 
 class Settings:
@@ -25,18 +26,16 @@ driver = GraphDatabase.driver(
 def get_session():
     return driver.session()
 
-
-base = Path(RESSOURCES_FOLDER)
-
-#Parsing de l'arbre des classes
-def parse_class_tree():
-
-
-    ctfs = [file for file in base.rglob(CLASS_TREE_PDF) if file.is_file()]
+def open_ressource_file(file_name):
+    ctfs = [file for file in Path(RESSOURCES_FOLDER).rglob(file_name) if file.is_file()]
     if len(ctfs) != 1:
         print("Error cannot find class tree file")
         exit(1)
     ctf = ctfs[0]
+    return pdfplumber.open(ctf)
+
+#Parsing de l'arbre des classes
+def parse_class_tree():
 
     class_dict = dict()
     relation_dict = dict()
@@ -72,7 +71,7 @@ def parse_class_tree():
                     relation_dict[f"{previous}-{clean_classe}"] = f"({previous})-[:Evolve]->({to_id(classe)})"
             previous = to_id(classes)
 
-    with pdfplumber.open(ctf) as pdf:
+    with open_ressource_file(CLASS_TREE_PDF) as pdf:
         for page_id in range(2,len(pdf.pages)):
             page = pdf.pages[page_id]
             for table in page.extract_tables():
@@ -84,3 +83,8 @@ def parse_class_tree():
 
     query = f"CREATE {','.join(class_dict.values())},{','.join(relation_dict.values())}"
     get_session().run(query)
+
+def main():
+    parse_class_tree()
+
+main()
