@@ -4,6 +4,7 @@ import pandas as pd
 import unicodedata
 import os
 from neo4j import GraphDatabase
+import re
 
 RESSOURCES_FOLDER = "ressources/"
 
@@ -84,7 +85,45 @@ def parse_class_tree():
     query = f"CREATE {','.join(class_dict.values())},{','.join(relation_dict.values())}"
     get_session().run(query)
 
+def parse_ordinary_techniques():
+    TECHNIQUE_HEADER = r"(?P<name>.+?)\s*-\s*(?P<type>.+?)\s*-\s*(?P<energy>\d+?) PE\s*-\s*(?P<slot>\d+?) PT"
+
+    tech_list= list()
+
+    def save_n_tech(n_tech,n_tech_desc):         
+        if n_tech is not None:
+            n_tech["desc"]=" ".join(n_tech_desc)
+            tech_list.append(n_tech)
+
+    def transform_to_neo4j(skill_dict):
+        values = ','.join([ f"{key}:'{skill_dict[key]}'" for key in skill_dict ])
+        return f"(:Skill:OrdinarySkill {{{values}}})"
+
+    with open_ressource_file(ORDINARY_TECHNIQUES_PDF) as pdf:
+        for page_id in range(3,len(pdf.pages)):
+            page = pdf.pages[page_id]
+            n_tech = None
+            n_tech_desc = []
+            for line in page.extract_text().split("\n")[:-1]:
+                match = re.fullmatch(TECHNIQUE_HEADER,line)
+                if (match is not None):
+                    save_n_tech(n_tech,n_tech_desc)
+                    n_tech = match.groupdict()
+                    n_tech_desc=[]
+                else:
+                    n_tech_desc.append(line)
+            save_n_tech(n_tech,n_tech_desc)
+    
+    #print(transform_to_neo4j(tech_list[0]))
+
+    query = f"CREATE {','.join(map(transform_to_neo4j,tech_list))}"  
+    print(query)
+    get_session().run(query)
+
 def main():
-    parse_class_tree()
+    #parse_class_tree()
+    print("MAIN")
+    parse_ordinary_techniques()
+
 
 main()
